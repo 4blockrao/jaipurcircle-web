@@ -22,40 +22,27 @@ function siteUrl() {
   return (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
-async function getLocality(slug: string) {
-  const { data, error } = await supabaseServer
-    .from("localities")
-    .select("id,slug,name")
-    .eq("slug", slug)
-    .maybeSingle<LocalityLite>();
-
-  if (error || !data) return null;
-  return data;
-}
-
 export async function generateMetadata({
   params,
 }: {
-  params: { category?: string; slug?: string };
+  params: Promise<{ category?: string; slug?: string }>;
 }): Promise<Metadata> {
-  const category = params?.category;
-  const slug = params?.slug;
+  const { category, slug } = await params;
+  if (!category || !slug) return { title: "Deals | JaipurCircle" };
 
-  if (!category || !slug) return { title: "Deals" };
-
-  const loc = await getLocality(slug);
-  const locLabel = (loc?.name || loc?.slug || slug).toString();
   const catLabel = titleize(category);
-
-  const url = `${siteUrl()}/deals/category/${encodeURIComponent(category)}/locality/${encodeURIComponent(slug)}`;
+  const locLabel = slug.replaceAll("-", " ");
+  const url = `${siteUrl()}/deals/category/${encodeURIComponent(category)}/locality/${encodeURIComponent(
+    slug
+  )}`;
 
   return {
-    title: `${catLabel} Deals in ${locLabel} | JaipurCircle`,
-    description: `Browse ${catLabel.toLowerCase()} deals in ${locLabel}, Jaipur. Locality-specific landing page for practical nearby offers.`,
+    title: `${catLabel} deals in ${titleize(locLabel)} | JaipurCircle`,
+    description: `Browse ${catLabel.toLowerCase()} deals in ${locLabel} (Jaipur). Locality-filtered deals page for practical nearby savings.`,
     alternates: { canonical: url },
     openGraph: {
-      title: `${catLabel} deals in ${locLabel}`,
-      description: `Browse ${catLabel.toLowerCase()} deals in ${locLabel}, Jaipur.`,
+      title: `${catLabel} deals in ${titleize(locLabel)}`,
+      description: `Browse ${catLabel.toLowerCase()} deals in ${locLabel} (Jaipur).`,
       url,
       type: "website",
     },
@@ -65,15 +52,20 @@ export async function generateMetadata({
 export default async function DealsCategoryLocalityPage({
   params,
 }: {
-  params: { category?: string; slug?: string };
+  params: Promise<{ category?: string; slug?: string }>;
 }) {
-  const category = params?.category;
-  const slug = params?.slug;
+  const { category, slug } = await params;
 
-  if (!category || !slug) return notFound();
+  if (!category) return notFound();
+  if (!slug) return notFound();
 
-  const loc = await getLocality(slug);
-  if (!loc) return notFound();
+  const { data: loc, error: locErr } = await supabaseServer
+    .from("localities")
+    .select("id,slug,name")
+    .eq("slug", slug)
+    .maybeSingle<LocalityLite>();
+
+  if (locErr || !loc) return notFound();
 
   const locLabel = (loc.name || loc.slug).toString();
   const catLabel = titleize(category);
@@ -90,7 +82,8 @@ export default async function DealsCategoryLocalityPage({
         {catLabel} deals in {locLabel}
       </h1>
       <p className="mt-3 text-neutral-300">
-        This is the locality-filtered category landing page. We’ll show actual deals once the DB table is wired.
+        This is the locality-filtered category landing page. We’ll show actual deals once the DB table is
+        wired.
       </p>
 
       <section className="mt-6 rounded-xl border border-white/10 bg-white/5 p-5">
@@ -106,16 +99,11 @@ export default async function DealsCategoryLocalityPage({
               View all deals in {locLabel}
             </Link>
           </li>
-          <li>
-            <Link className="underline" href="/deals">
-              Back to Deals index
-            </Link>
-          </li>
         </ul>
       </section>
 
       <div className="mt-10 text-xs text-neutral-500">
-        FILE-FINGERPRINT: deals-category-locality-v1-seo
+        FILE-FINGERPRINT: deals-category-locality-v1
       </div>
     </main>
   );

@@ -19,23 +19,41 @@ function titleize(s: string) {
 }
 
 function siteUrl() {
-  return (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.SITE_URL ||
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
+}
+
+async function resolveParams(
+  params: { category?: string } | Promise<{ category?: string }>
+) {
+  return await Promise.resolve(params);
 }
 
 export async function generateMetadata({
   params,
 }: {
-  params: { category?: string };
+  params: { category?: string } | Promise<{ category?: string }>;
 }): Promise<Metadata> {
-  const category = params?.category;
-  if (!category) return { title: "Deals Category" };
+  const p = await resolveParams(params);
+  const category = p?.category;
+
+  if (!category) {
+    return {
+      title: "Deals Category | JaipurCircle",
+      description: "Browse deals by category across Jaipur.",
+      alternates: { canonical: `${siteUrl()}/deals` },
+    };
+  }
 
   const catLabel = titleize(category);
   const url = `${siteUrl()}/deals/category/${encodeURIComponent(category)}`;
 
   return {
-    title: `${catLabel} Deals in Jaipur | JaipurCircle`,
-    description: `Browse ${catLabel.toLowerCase()} deals and offers across Jaipur. Filter by locality for practical, nearby deals.`,
+    title: `${catLabel} Deals & Offers in Jaipur | JaipurCircle`,
+    description: `Discover ${catLabel.toLowerCase()} deals and offers in Jaipur. Filter by locality for practical nearby savings.`,
     alternates: { canonical: url },
     openGraph: {
       title: `${catLabel} Deals in Jaipur`,
@@ -49,15 +67,15 @@ export async function generateMetadata({
 export default async function DealsCategoryPage({
   params,
 }: {
-  params: { category?: string };
+  params: { category?: string } | Promise<{ category?: string }>;
 }) {
-  const category = params?.category;
+  const p = await resolveParams(params);
+  const category = p?.category;
   if (!category) return notFound();
 
   const catLabel = titleize(category);
 
-  // Pull some localities to link into deeper pages
-  const { data: localities } = await supabaseServer
+  const { data: localities, error } = await supabaseServer
     .from("localities")
     .select("id,slug,name")
     .order("name", { ascending: true })
@@ -73,9 +91,16 @@ export default async function DealsCategoryPage({
 
       <h1 className="text-4xl font-semibold">{catLabel} Deals in Jaipur</h1>
       <p className="mt-3 text-neutral-300">
-        Browse {catLabel.toLowerCase()} deals and offers across Jaipur. We’ll show full listings once the
-        deals table is wired — for now, use locality drilldowns (SEO-friendly internal links).
+        Browse {catLabel.toLowerCase()} deals and offers across Jaipur. We’ll show full
+        listings once the deals table is wired — for now, use locality drilldowns
+        (SEO-friendly internal links).
       </p>
+
+      {error ? (
+        <div className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-200">
+          Failed to load localities: {error.message}
+        </div>
+      ) : null}
 
       <section className="mt-6 rounded-xl border border-white/10 bg-white/5 p-5">
         <h2 className="text-lg font-medium">Browse by locality</h2>
@@ -98,7 +123,7 @@ export default async function DealsCategoryPage({
                   key={l.id}
                   className="rounded-2xl border border-white/10 bg-white/5 p-4"
                 >
-                  <div className="text-white font-medium">{label}</div>
+                  <div className="font-medium text-white">{label}</div>
 
                   <div className="mt-2 flex flex-wrap gap-2 text-sm">
                     <Link
@@ -110,7 +135,9 @@ export default async function DealsCategoryPage({
 
                     <Link
                       className="rounded-full border border-white/10 bg-white/5 px-3 py-1 hover:bg-white/10"
-                      href={`/deals/category/${encodeURIComponent(category)}/locality/${encodeURIComponent(slug)}`}
+                      href={`/deals/category/${encodeURIComponent(
+                        category
+                      )}/locality/${encodeURIComponent(slug)}`}
                     >
                       {catLabel} in {label}
                     </Link>
@@ -132,7 +159,7 @@ export default async function DealsCategoryPage({
       </section>
 
       <div className="mt-10 text-xs text-neutral-500">
-        FILE-FINGERPRINT: deals-category-v1-seo
+        FILE-FINGERPRINT: deals-category-v1-seo-hardened
       </div>
     </main>
   );

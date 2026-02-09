@@ -1,19 +1,22 @@
-// app/robots.txt/route.ts
 export const runtime = "nodejs";
 
+function siteUrl() {
+  return (process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "https://www.jaipurcircle.com").replace(/\/$/, "");
+}
+
 export async function GET() {
-  const baseUrl = process.env.SITE_URL || "https://www.jaipurcircle.com";
+  const baseUrl = siteUrl();
 
   const body = [
     "User-agent: *",
     "Allow: /",
     "",
-    // Keep these blocked if they exist in your app:
     "Disallow: /admin",
     "Disallow: /auth",
     "Disallow: /settings",
     "",
     `Sitemap: ${baseUrl}/sitemap.xml`,
+    `Sitemap: ${baseUrl}/sitemap-deals.xml`,
     "",
   ].join("\n");
 

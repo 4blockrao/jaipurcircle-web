@@ -36,13 +36,13 @@ export async function generateMetadata({
 
   if (!slug) {
     return {
-      title: "Jaipur Localities | JaipurCircle",
-      description: "Browse Jaipur localities and neighbourhoods.",
-      alternates: { canonical: `${siteUrl()}/jaipur` },
+      title: "Events by Locality | JaipurCircle",
+      description: "Browse Jaipur events by locality.",
+      alternates: { canonical: `${siteUrl()}/events` },
     };
   }
 
-  const url = `${siteUrl()}/jaipur/${encodeURIComponent(slug)}`;
+  const url = `${siteUrl()}/events/locality/${encodeURIComponent(slug)}`;
 
   const { data: loc } = await supabaseServer
     .from("localities")
@@ -53,19 +53,19 @@ export async function generateMetadata({
   const label = (loc?.name || loc?.slug || slug).toString();
 
   return {
-    title: `${label} (Jaipur) | JaipurCircle`,
-    description: `${label} Jaipur locality guide: practical snapshot + events and deals nearby.`,
+    title: `Events in ${label} | JaipurCircle`,
+    description: `Browse events in ${label}, Jaipur. This page becomes fully populated once events are wired with locality tagging.`,
     alternates: { canonical: url },
     openGraph: {
-      title: `${label} (Jaipur)`,
-      description: `Locality hub for ${label}: events, deals, and local context.`,
+      title: `Events in ${label}`,
+      description: `Browse events in ${label}, Jaipur.`,
       url,
       type: "website",
     },
   };
 }
 
-export default async function JaipurSlugLocalityPage({
+export default async function EventsByLocalityPage({
   params,
 }: {
   params: { slug?: string } | Promise<{ slug?: string }>;
@@ -74,51 +74,55 @@ export default async function JaipurSlugLocalityPage({
   const slug = p?.slug;
   if (!slug) return notFound();
 
-  const { data, error } = await supabaseServer
+  const { data: loc, error } = await supabaseServer
     .from("localities")
     .select("id,slug,name")
     .eq("slug", slug)
     .maybeSingle<LocalityLite>();
 
-  if (error || !data) return notFound();
+  if (error || !loc) return notFound();
 
-  const label = (data.name || data.slug).toString();
+  const label = (loc.name || loc.slug).toString();
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
       <nav className="mb-4 text-sm text-neutral-400">
-        <Link href="/">Home</Link> › <Link href="/jaipur">Jaipur</Link> › {label}
+        <Link href="/">Home</Link> › <Link href="/events">Events</Link> ›{" "}
+        <Link href="/localities">Localities</Link> › {label}
       </nav>
 
-      <h1 className="text-4xl font-semibold">{label}</h1>
+      <h1 className="text-4xl font-semibold">Events in {label}</h1>
       <p className="mt-3 text-neutral-300">
-        JaipurCircle locality guide for <b>{label}</b>. This page is designed to become unique and
-        indexable over time with local landmarks, markets, parks, and practical tips.
+        This is the locality landing page for events in <b>{label}</b>. We’ll show listings once the
+        events table is fully wired with locality tagging.
       </p>
 
-      <section className="mt-6 rounded-xl border border-white/10 bg-white/5 p-5">
+      <section className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
         <h2 className="text-lg font-medium">Explore</h2>
         <ul className="mt-3 list-disc pl-5 text-neutral-300">
           <li>
-            <Link className="underline" href={`/localities/${encodeURIComponent(data.slug)}`}>
-              Open the canonical locality page (/localities/{data.slug})
+            <Link className="underline" href="/events">
+              Browse all Jaipur events
             </Link>
           </li>
           <li>
-            <Link className="underline" href={`/events/locality/${encodeURIComponent(data.slug)}`}>
-              Events in {label}
+            <Link
+              className="underline"
+              href={`/events?locality=${encodeURIComponent(loc.slug)}`}
+            >
+              Events filter (query hook): /events?locality={loc.slug}
             </Link>
           </li>
           <li>
-            <Link className="underline" href={`/deals/locality/${encodeURIComponent(data.slug)}`}>
-              Deals in {label}
+            <Link className="underline" href={`/localities/${encodeURIComponent(loc.slug)}`}>
+              View locality page
             </Link>
           </li>
         </ul>
       </section>
 
-      <div className="mt-10 text-xs text-neutral-500">
-        FILE-FINGERPRINT: jaipur-locality-detail-v1-seo-hardened
+      <div className="mt-8 text-xs text-neutral-500">
+        FILE-FINGERPRINT: events-locality-v1-seo-hardened
       </div>
     </main>
   );

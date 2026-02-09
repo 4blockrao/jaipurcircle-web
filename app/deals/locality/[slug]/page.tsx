@@ -16,36 +16,23 @@ function siteUrl() {
   return (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
-async function getLocality(slug: string) {
-  const { data, error } = await supabaseServer
-    .from("localities")
-    .select("id,slug,name")
-    .eq("slug", slug)
-    .maybeSingle<LocalityLite>();
-
-  if (error || !data) return null;
-  return data;
-}
-
 export async function generateMetadata({
   params,
 }: {
-  params: { slug?: string };
+  params: Promise<{ slug?: string }>;
 }): Promise<Metadata> {
-  const slug = params?.slug;
-  if (!slug) return { title: "Deals by Locality" };
+  const { slug } = await params;
+  if (!slug) return { title: "Deals by Locality | JaipurCircle" };
 
-  const loc = await getLocality(slug);
-  const label = (loc?.name || loc?.slug || slug).toString();
   const url = `${siteUrl()}/deals/locality/${encodeURIComponent(slug)}`;
 
   return {
-    title: `Deals in ${label} | JaipurCircle`,
-    description: `Curated deals and offers in ${label}, Jaipur. Browse by category and drill down into locality-specific pages.`,
+    title: `Deals in ${slug.replaceAll("-", " ")} | JaipurCircle`,
+    description: `Browse deals and offers in ${slug.replaceAll("-", " ")} (Jaipur). Filter by category and discover savings nearby.`,
     alternates: { canonical: url },
     openGraph: {
-      title: `Deals in ${label}`,
-      description: `Curated offers in ${label}, Jaipur. Browse by category.`,
+      title: `Deals in ${slug.replaceAll("-", " ")}`,
+      description: `Browse deals and offers in ${slug.replaceAll("-", " ")} (Jaipur).`,
       url,
       type: "website",
     },
@@ -55,24 +42,20 @@ export async function generateMetadata({
 export default async function DealsByLocalityPage({
   params,
 }: {
-  params: { slug?: string };
+  params: Promise<{ slug?: string }>;
 }) {
-  const slug = params?.slug;
+  const { slug } = await params;
   if (!slug) return notFound();
 
-  const loc = await getLocality(slug);
-  if (!loc) return notFound();
+  const { data: loc, error: locErr } = await supabaseServer
+    .from("localities")
+    .select("id,slug,name")
+    .eq("slug", slug)
+    .maybeSingle<LocalityLite>();
+
+  if (locErr || !loc) return notFound();
 
   const label = (loc.name || loc.slug).toString();
-
-  const categories = [
-    "restaurants",
-    "cafes",
-    "shopping",
-    "salons",
-    "gyms",
-    "event-tickets",
-  ];
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
@@ -84,20 +67,18 @@ export default async function DealsByLocalityPage({
       <h1 className="text-4xl font-semibold">Deals in {label}</h1>
       <p className="mt-3 text-neutral-300">
         Curated offers for <b>{label}</b>. We’ll show listings once the deals table is wired.
-        For now, use category drilldowns below.
       </p>
 
       <section className="mt-6 rounded-xl border border-white/10 bg-white/5 p-5">
         <h2 className="text-lg font-medium">Browse deals by category</h2>
         <p className="mt-2 text-sm text-neutral-400">
-          These pages work now. Locality-scoped listings will be powered by DB later.
+          Category pages work now. Locality-scoped listings will be powered by DB later.
         </p>
-
         <div className="mt-4 flex flex-wrap gap-2">
-          {categories.map((c) => (
+          {["restaurants", "cafes", "shopping", "salons", "gyms", "event-tickets"].map((c) => (
             <Link
               key={c}
-              href={`/deals/category/${encodeURIComponent(c)}/locality/${encodeURIComponent(loc.slug)}`}
+              href={`/deals/category/${c}/locality/${encodeURIComponent(loc.slug)}`}
               className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"
             >
               {c.replaceAll("-", " ")}
@@ -106,17 +87,8 @@ export default async function DealsByLocalityPage({
         </div>
       </section>
 
-      <section className="mt-6 rounded-xl border border-white/10 bg-white/5 p-5">
-        <h2 className="text-lg font-medium">What you’ll find here (v1)</h2>
-        <ul className="mt-3 list-disc pl-5 text-neutral-300">
-          <li>Locality landing page with clean SEO-friendly URL</li>
-          <li>Category deep links for internal navigation</li>
-          <li>Later: actual deal listings from DB</li>
-        </ul>
-      </section>
-
       <div className="mt-10 text-xs text-neutral-500">
-        FILE-FINGERPRINT: deals-locality-v1-seo
+        FILE-FINGERPRINT: deals-locality-v1
       </div>
     </main>
   );
