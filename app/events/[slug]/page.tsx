@@ -1,6 +1,7 @@
+// app/events/[slug]/page.tsx
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { supabaseServer } from "../../../lib/supabaseServer";
+import { supabaseServer } from "@/lib/supabaseServer";
 
 export const dynamic = "force-dynamic";
 
@@ -88,7 +89,6 @@ function buildEventDescription(opts: {
     shortDescription,
   } = opts;
 
-  // If event already has a short description, we use it (but ensure it's not too long)
   const sd = (shortDescription || "").trim();
   if (sd.length >= 60) {
     return sd.length > 160 ? sd.slice(0, 157) + "…" : sd;
@@ -158,6 +158,14 @@ async function getEventBySlug(slug: string) {
         "published_at",
         "meta_title",
         "meta_description",
+        // NOTE: these might or might not exist in your table; page rendering guards below
+        "is_online",
+        "online_url",
+        "latitude",
+        "longitude",
+        "organizer_name",
+        "organizer_email",
+        "organizer_phone",
       ].join(",")
     )
     .eq("slug", slug)
@@ -169,11 +177,9 @@ async function getEventBySlug(slug: string) {
 async function resolveLocalitySlugFromEventLocality(locality: string | null) {
   if (!locality) return null;
 
-  // If it looks like a slug already, use it.
   const looksLikeSlug = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(locality.trim().toLowerCase());
   const candidateSlug = looksLikeSlug ? locality.trim().toLowerCase() : slugify(locality);
 
-  // Try direct slug match first
   let { data } = await supabaseServer
     .from("localities")
     .select("slug,name")
@@ -182,7 +188,6 @@ async function resolveLocalitySlugFromEventLocality(locality: string | null) {
 
   if (data?.slug) return data.slug;
 
-  // Try name match (case-insensitive)
   const { data: byName } = await supabaseServer
     .from("localities")
     .select("slug,name")
@@ -205,16 +210,17 @@ export async function generateMetadata({
   const { slug } = await params;
   const path = `/events/${slug}`;
 
-  const [{ reg }, { event }] = await Promise.all([getPageRegistry(path), getEventBySlug(slug)]);
+  // ✅ IMPORTANT FIX: force tuple typing so TS doesn't widen to a union
+  const [regRes, eventRes] = await Promise.all([getPageRegistry(path), getEventBySlug(slug)] as const);
+
+  const reg = regRes.reg;
+  const event = eventRes.event;
 
   const city = "Jaipur";
   const titleBase = safeText(event?.meta_title) || safeText(event?.title) || "Event";
   const dateLabel = fmtDate(event?.start_date ?? null);
 
-  const canonical =
-    reg?.canonical_url?.trim() ||
-    `https://www.jaipurcircle.com${path}`;
-
+  const canonical = reg?.canonical_url?.trim() || `https://www.jaipurcircle.com${path}`;
   const shouldIndex = !reg?.index_state || reg.index_state === "index";
 
   const description =
@@ -232,8 +238,7 @@ export async function generateMetadata({
     });
 
   const title =
-    safeText(event?.meta_title) ||
-    buildEventTitle(titleBase, city, dateLabel);
+    safeText(event?.meta_title) || buildEventTitle(titleBase, city, dateLabel);
 
   const ogImage = safeText(event?.cover_image) || undefined;
 
@@ -241,9 +246,7 @@ export async function generateMetadata({
     title,
     description,
     alternates: { canonical },
-    robots: shouldIndex
-      ? { index: true, follow: true }
-      : { index: false, follow: false },
+    robots: shouldIndex ? { index: true, follow: true } : { index: false, follow: false },
     openGraph: {
       title,
       description,
@@ -271,32 +274,33 @@ export default async function EventPage({
   const { slug } = await params;
   const path = `/events/${slug}`;
 
-  const [{ reg, regError }, { event, eventError }] = await Promise.all([
-    getPageRegistry(path),
-    getEventBySlug(slug),
-  ]);
+  // ✅ IMPORTANT FIX: tuple typing here too
+  const [regRes, eventRes] = await Promise.all([getPageRegistry(path), getEventBySlug(slug)] as const);
+
+  const reg = regRes.reg;
+  const regError = regRes.regError;
+
+  const event = eventRes.event;
+  const eventError = eventRes.eventError;
 
   if (regError) {
     return (
       <main style={{ padding: 24, fontFamily: "system-ui" }}>
         <h1>Server error</h1>
         <p>page_registry lookup failed.</p>
-        <pre>{String(regError.message || regError)}</pre>
+        <pre>{String((regError as any).message || regError)}</pre>
         <p>Path:</p>
         <pre>{path}</pre>
       </main>
     );
   }
 
-  // For Events v1: if not in page_registry, we still allow SSR (so you can test).
-  // But for strict behavior later, you can: if (!reg) notFound();
-
   if (eventError) {
     return (
       <main style={{ padding: 24, fontFamily: "system-ui" }}>
         <h1>Server error</h1>
         <p>events lookup failed.</p>
-        <pre>{String(eventError.message || eventError)}</pre>
+        <pre>{String((eventError as any).message || eventError)}</pre>
         <p>Slug:</p>
         <pre>{slug}</pre>
       </main>
@@ -311,6 +315,7 @@ export default async function EventPage({
   const venueName = safeText(event.venue_name) || "Venue To Be Announced";
   const venueAddress = safeText(event.venue_address) || "";
   const localityName = safeText(event.locality) || "";
+
   const startDateLabel = fmtDate(event.start_date ?? null);
   const timeLabel = fmtTimeRange(
     event.start_date ?? null,
@@ -320,16 +325,12 @@ export default async function EventPage({
   );
 
   const isFree = Boolean(event.is_free);
-  const ticketPrice =
-    typeof event.ticket_price === "number" ? event.ticket_price : null;
+  const ticketPrice = typeof event.ticket_price === "number" ? event.ticket_price : null;
 
-  const regDeadline = event.registration_deadline
-    ? fmtDate(event.registration_deadline)
-    : null;
+  const regDeadline = event.registration_deadline ? fmtDate(event.registration_deadline) : null;
 
   const localitySlug = await resolveLocalitySlugFromEventLocality(event.locality ?? null);
 
-  // Breadcrumbs (UI + JSON-LD)
   const crumbs = [
     { name: "Home", url: "https://www.jaipurcircle.com/" },
     { name: "Events", url: "https://www.jaipurcircle.com/events" },
@@ -393,7 +394,6 @@ export default async function EventPage({
         : undefined,
   };
 
-  // BreadcrumbList JSON-LD
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -405,7 +405,6 @@ export default async function EventPage({
     })),
   };
 
-  // Uniqueness copy blocks (anti-thin)
   const isVenueTbd = venueName.toLowerCase().includes("to be announced");
   const locationLine = isVenueTbd
     ? `Venue is yet to be announced. We’ll update this page as soon as it’s verified.`
@@ -562,7 +561,6 @@ export default async function EventPage({
         </ul>
       </section>
 
-      {/* Fingerprint */}
       <div style={{ marginTop: 12, fontSize: 12, color: "#999" }}>
         FILE-FINGERPRINT: events-v1-2026-02-08
       </div>
