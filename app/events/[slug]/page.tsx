@@ -143,7 +143,6 @@ async function getEventBySlug(slug: string) {
         "is_all_day",
         "venue_name",
         "venue_address",
-        "city",
         "locality",
         "category",
         "tags",
@@ -158,7 +157,6 @@ async function getEventBySlug(slug: string) {
         "published_at",
         "meta_title",
         "meta_description",
-        // NOTE: these might or might not exist in your table; page rendering guards below
         "is_online",
         "online_url",
         "latitude",
@@ -180,13 +178,13 @@ async function resolveLocalitySlugFromEventLocality(locality: string | null) {
   const looksLikeSlug = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(locality.trim().toLowerCase());
   const candidateSlug = looksLikeSlug ? locality.trim().toLowerCase() : slugify(locality);
 
-  let { data } = await supabaseServer
+  const { data: bySlug } = await supabaseServer
     .from("localities")
     .select("slug,name")
     .eq("slug", candidateSlug)
     .maybeSingle();
 
-  if (data?.slug) return data.slug;
+  if (bySlug?.slug) return bySlug.slug;
 
   const { data: byName } = await supabaseServer
     .from("localities")
@@ -210,8 +208,12 @@ export async function generateMetadata({
   const { slug } = await params;
   const path = `/events/${slug}`;
 
-  // ✅ IMPORTANT FIX: force tuple typing so TS doesn't widen to a union
-  const [regRes, eventRes] = await Promise.all([getPageRegistry(path), getEventBySlug(slug)] as const);
+  // ✅ FIX: do NOT destructure Promise.all (prevents union-widening)
+  const regResPromise = getPageRegistry(path);
+  const eventResPromise = getEventBySlug(slug);
+
+  const regRes = await regResPromise;
+  const eventRes = await eventResPromise;
 
   const reg = regRes.reg;
   const event = eventRes.event;
@@ -274,8 +276,12 @@ export default async function EventPage({
   const { slug } = await params;
   const path = `/events/${slug}`;
 
-  // ✅ IMPORTANT FIX: tuple typing here too
-  const [regRes, eventRes] = await Promise.all([getPageRegistry(path), getEventBySlug(slug)] as const);
+  // ✅ FIX: same here
+  const regResPromise = getPageRegistry(path);
+  const eventResPromise = getEventBySlug(slug);
+
+  const regRes = await regResPromise;
+  const eventRes = await eventResPromise;
 
   const reg = regRes.reg;
   const regError = regRes.regError;
@@ -337,7 +343,6 @@ export default async function EventPage({
     { name: title, url: `https://www.jaipurcircle.com/events/${slug}` },
   ];
 
-  // JSON-LD (Event)
   const eventJsonLd: any = {
     "@context": "https://schema.org",
     "@type": "Event",
@@ -420,7 +425,6 @@ export default async function EventPage({
 
   return (
     <main style={{ padding: 24, fontFamily: "system-ui", maxWidth: 980, margin: "0 auto" }}>
-      {/* JSON-LD */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
@@ -430,7 +434,6 @@ export default async function EventPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(eventJsonLd) }}
       />
 
-      {/* Breadcrumbs (UI) */}
       <nav style={{ fontSize: 13, color: "#555", marginBottom: 10 }}>
         {crumbs.map((c, i) => (
           <span key={c.url}>
@@ -456,7 +459,6 @@ export default async function EventPage({
         {localityName ? <> &nbsp;•&nbsp; {localityName}</> : null}
       </div>
 
-      {/* Quick info card */}
       <section style={{ marginTop: 12, padding: 16, border: "1px solid #eee", borderRadius: 12 }}>
         <h2 style={{ marginTop: 0 }}>Event quick info</h2>
         <ul style={{ lineHeight: 1.7, margin: 0, paddingLeft: 18 }}>
@@ -507,7 +509,6 @@ export default async function EventPage({
         </ul>
       </section>
 
-      {/* Uniqueness / local context */}
       <section style={{ marginTop: 16 }}>
         <h2>About this event in Jaipur</h2>
         <p style={{ lineHeight: 1.7, marginBottom: 10 }}>{locationLine}</p>
@@ -517,7 +518,6 @@ export default async function EventPage({
         </p>
       </section>
 
-      {/* Attendee notes */}
       <section style={{ marginTop: 16 }}>
         <h2>Quick attendee notes</h2>
         <ul style={{ lineHeight: 1.7 }}>
@@ -528,7 +528,6 @@ export default async function EventPage({
         </ul>
       </section>
 
-      {/* Optional description */}
       {(event.short_description || event.description) ? (
         <section style={{ marginTop: 16 }}>
           <h2>Event details</h2>
@@ -538,7 +537,6 @@ export default async function EventPage({
         </section>
       ) : null}
 
-      {/* Internal links */}
       <section style={{ marginTop: 16, padding: 16, border: "1px solid #eee", borderRadius: 12 }}>
         <h2 style={{ marginTop: 0 }}>Explore more</h2>
         <ul style={{ lineHeight: 1.7, margin: 0, paddingLeft: 18 }}>
@@ -562,7 +560,7 @@ export default async function EventPage({
       </section>
 
       <div style={{ marginTop: 12, fontSize: 12, color: "#999" }}>
-        FILE-FINGERPRINT: events-v1-2026-02-08
+        FILE-FINGERPRINT: events-v1-2026-02-09-vercel-fix
       </div>
     </main>
   );
