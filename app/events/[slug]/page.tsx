@@ -207,7 +207,7 @@ export async function generateMetadata({
 
   const [{ reg }, { event }] = await Promise.all([getPageRegistry(path), getEventBySlug(slug)]);
 
-  const city = safeText(event?.city) || "Jaipur";
+  const city = "Jaipur";
   const titleBase = safeText(event?.meta_title) || safeText(event?.title) || "Event";
   const dateLabel = fmtDate(event?.start_date ?? null);
 
@@ -306,7 +306,7 @@ export default async function EventPage({
   if (!event) notFound();
 
   const title = safeText(event.title) || "Event";
-  const city = safeText(event.city) || "Jaipur";
+  const city = "Jaipur";
   const category = safeText(event.category) || "";
   const venueName = safeText(event.venue_name) || "Venue To Be Announced";
   const venueAddress = safeText(event.venue_address) || "";
