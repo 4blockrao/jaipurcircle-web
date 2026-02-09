@@ -1,5 +1,3 @@
-PASTE_CODE_HERE
-// app/jaipur/[slug]/page.tsx
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseServer } from "@/lib/supabaseServer";
@@ -7,58 +5,63 @@ import { supabaseServer } from "@/lib/supabaseServer";
 export const runtime = "nodejs";
 export const revalidate = 600;
 
-type Locality = {
+type LocalityLite = {
   id: string;
   slug: string;
   name: string | null;
-  title: string | null;
 };
 
 export default async function JaipurLocalityPage({
   params,
 }: {
-  params: { slug: string };
+  params: { slug?: string };
 }) {
-  const slug = params.slug;
+  const slug = params?.slug;
+  if (!slug) return notFound();
 
+  // IMPORTANT: only select columns that exist (avoid title/ward/city etc)
   const { data, error } = await supabaseServer
     .from("localities")
-    .select("id,slug,name,title")
+    .select("id,slug,name")
     .eq("slug", slug)
-    .maybeSingle<Locality>();
+    .maybeSingle<LocalityLite>();
 
   if (error || !data) return notFound();
 
-  const label = data.name || data.title || data.slug;
+  const label = (data.name || data.slug).toString();
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
       <nav className="mb-4 text-sm text-neutral-400">
-        <Link href="/">Home</Link> ›{" "}
-        <Link href="/jaipur">Jaipur</Link> › {label}
+        <Link href="/">Home</Link> › <Link href="/jaipur">Jaipur</Link> › {label}
       </nav>
 
       <h1 className="text-3xl font-semibold">{label}</h1>
-
       <p className="mt-3 text-neutral-300">
-        JaipurCircle locality guide for <b>{label}</b>. This page provides
-        practical context, nearby areas, and events happening around this
-        locality.
+        JaipurCircle locality guide for <b>{label}</b>. We’ll expand this page with practical context,
+        nearby landmarks, and curated events.
       </p>
 
       <section className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
-        <h2 className="text-lg font-medium">Explore nearby</h2>
+        <h2 className="text-lg font-medium">Explore</h2>
         <ul className="mt-3 list-disc pl-5 text-neutral-300">
+          <li>
+            <Link className="underline" href="/localities">
+              Browse all localities
+            </Link>
+          </li>
+          <li>
+            <Link className="underline" href={`/localities/${encodeURIComponent(data.slug)}`}>
+              Open this locality in /localities
+            </Link>
+          </li>
           <li>
             <Link className="underline" href="/events">
               Browse all Jaipur events
             </Link>
           </li>
           <li>
-            <Link
-              className="underline"
-              href={`/events?locality=${encodeURIComponent(slug)}`}
-            >
+            <Link className="underline" href={`/events?locality=${encodeURIComponent(data.slug)}`}>
               Events near {label}
             </Link>
           </li>
@@ -66,7 +69,7 @@ export default async function JaipurLocalityPage({
       </section>
 
       <div className="mt-8 text-xs text-neutral-500">
-        FILE-FINGERPRINT: jaipur-locality-v1
+        FILE-FINGERPRINT: jaipur-locality-detail-v1
       </div>
     </main>
   );
