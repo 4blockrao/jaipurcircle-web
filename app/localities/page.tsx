@@ -1,28 +1,28 @@
+// app/localities/page.tsx
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export const runtime = "nodejs";
 export const revalidate = 600;
 
-type LocalityRow = {
+type LocalityLite = {
   id: string;
+  name?: string | null;
+  title?: string | null;
   slug: string;
-  name: string | null;
-  title: string | null;
 };
 
 export default async function LocalitiesIndexPage() {
-  const supabase = supabaseServer();
-
-  const { data, error } = await supabase
+  const { data, error } = await supabaseServer
     .from("localities")
     .select("id,slug,name,title")
-    .order("slug", { ascending: true });
+    .order("name", { ascending: true })
+    .limit(500);
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
+    <main className="mx-auto max-w-5xl px-4 py-10">
       <h1 className="text-4xl font-semibold">Jaipur Localities</h1>
-      <p className="mt-3 text-neutral-300">
+      <p className="mt-2 text-neutral-400">
         Browse neighbourhood pages. Each locality includes practical context + events happening nearby.
       </p>
 
@@ -32,25 +32,25 @@ export default async function LocalitiesIndexPage() {
         </div>
       ) : null}
 
-      <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-        {!data || data.length === 0 ? (
-          <div className="text-neutral-400">No localities found yet.</div>
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {data?.length ? (
+          (data as LocalityLite[]).map((l) => {
+            const label = (l.name || l.title || l.slug || "").toString();
+            return (
+              <Link
+                key={l.id}
+                href={`/jaipur/${l.slug}`}
+                className="rounded-2xl border border-white/10 bg-white/5 p-4 hover:bg-white/10"
+              >
+                <div className="text-lg font-medium">{label}</div>
+                <div className="mt-2 text-sm text-neutral-400">View locality guide →</div>
+              </Link>
+            );
+          })
         ) : (
-          <ul className="space-y-2">
-            {(data as LocalityRow[]).map((l) => {
-              const label = (l.name || l.title || l.slug).toString();
-              return (
-                <li key={l.id} className="flex items-center justify-between">
-                  <Link className="underline" href={`/localities/${l.slug}`}>
-                    {label}
-                  </Link>
-                  <Link className="text-sm text-neutral-400 underline" href={`/jaipur/${l.slug}`}>
-                    /jaipur/{l.slug}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-10 text-neutral-400">
+            No localities found yet.
+          </div>
         )}
       </div>
 
